@@ -1,0 +1,8 @@
+{
+  "DISCORD_BOT_TOKEN": "YOUR_DISCORD_BOT_TOKEN_HERE",
+  "OWNER_ID": 123456789012345678,
+  "LTC_PRIVATE_KEY": "YOUR_LTC_PRIVATE_KEY_HERE",
+  "LTC_ADDRESS": "YOUR_LTC_ADDRESS_HERE",
+  "PAYPAL_EMAIL": "YOUR_PAYPAL_EMAIL_HERE",
+  "PAYPAL_TOS": "By purchasing, you agree that all sales are final and no refunds will be provided. Please send as Friends and Family."
+}
