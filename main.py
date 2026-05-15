@@ -110,11 +110,11 @@ def is_owner():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CheckFailure):
         # Fail silently or tell them they lack permission, as requested
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        await interaction.response.send_message("❌ You do not have permission to use this command.")
     else:
         # Generic error fallback
         if not interaction.response.is_done():
-            await interaction.response.send_message(f"An error occurred: {error}", ephemeral=True)
+            await interaction.response.send_message(f"An error occurred: {error}")
 
 # -----------------
 # 1. Calculator
@@ -165,9 +165,9 @@ def safe_calc(expression: str) -> float:
 async def calc(interaction: discord.Interaction, expression: str):
     try:
         result = safe_calc(expression)
-        await interaction.response.send_message(f"**Expression:** `{expression}`\n**Result:** `{result}`", ephemeral=True)
+        await interaction.response.send_message(f"**Expression:** `{expression}`\n**Result:** `{result}`")
     except Exception as e:
-        await interaction.response.send_message(f"❌ Error calculating expression. Make sure it's a valid math expression like `100 + 5%` or `50 * 2`.", ephemeral=True)
+        await interaction.response.send_message(f"❌ Error calculating expression. Make sure it's a valid math expression like `100 + 5%` or `50 * 2`.")
 
 # -----------------
 # 2. PayPal
@@ -180,7 +180,7 @@ async def paypal(interaction: discord.Interaction):
     embed = discord.Embed(title="PayPal Information", color=discord.Color.blue())
     embed.add_field(name="Email", value=f"`{PAYPAL_EMAIL}`\n*(Click to copy)*", inline=False)
     embed.add_field(name="Terms of Service", value=PAYPAL_TOS, inline=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 # -----------------
 # 3. Litecoin Address
@@ -192,7 +192,7 @@ async def paypal(interaction: discord.Interaction):
 async def ltc_address_cmd(interaction: discord.Interaction):
     embed = discord.Embed(title="Litecoin Address", color=discord.Color.light_gray())
     embed.add_field(name="Address", value=f"`{LTC_ADDRESS}`\n*(Click to copy)*", inline=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 # -----------------
 # 4. Litecoin TX lookup
@@ -206,7 +206,7 @@ def fetch_tx(txid: str):
 @bot.tree.command(name="ltc_tx", description="Look up a Litecoin transaction by TXID")
 @is_owner()
 async def ltc_tx(interaction: discord.Interaction, txid: str):
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
     try:
         # Run synchronous requests.get in executor to prevent blocking
         loop = asyncio.get_running_loop()
@@ -238,16 +238,16 @@ async def ltc_tx(interaction: discord.Interaction, txid: str):
 @bot.tree.command(name="webhook_send", description="Send a stealth webhook message")
 @is_owner()
 async def webhook_send(interaction: discord.Interaction, url: str, message: str):
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
     try:
         payload = {"content": message}
         async with bot.session.post(url, json=payload) as response:
             if response.status in (200, 204):
-                await interaction.followup.send("✅ Webhook sent successfully.", ephemeral=True)
+                await interaction.followup.send("✅ Webhook sent successfully.")
             else:
-                await interaction.followup.send(f"❌ Failed to send. Status: {response.status}", ephemeral=True)
+                await interaction.followup.send(f"❌ Failed to send. Status: {response.status}")
     except Exception as e:
-        await interaction.followup.send(f"❌ Error sending webhook: {str(e)}", ephemeral=True)
+        await interaction.followup.send(f"❌ Error sending webhook: {str(e)}")
 
 from discord.app_commands import Choice
 
@@ -269,9 +269,9 @@ from discord.app_commands import Choice
 @is_owner()
 async def cv(interaction: discord.Interaction, amount: float, from_curr: str, to_curr: str):
     if from_curr == to_curr:
-        return await interaction.response.send_message(f"Amount: {amount} {to_curr}", ephemeral=True)
+        return await interaction.response.send_message(f"Amount: {amount} {to_curr}")
 
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
     
     try:
         # We need to get exchange rates
@@ -300,10 +300,10 @@ async def cv(interaction: discord.Interaction, amount: float, from_curr: str, to
         embed.add_field(name="From", value=f"{amount:,.2f} **{from_curr}**" if from_curr != "LTC" else f"{amount:,.4f} **{from_curr}**", inline=True)
         embed.add_field(name="To", value=f"{converted:,.2f} **{to_curr}**" if to_curr != "LTC" else f"{converted:,.4f} **{to_curr}**", inline=True)
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed)
 
     except Exception as e:
-        await interaction.followup.send(f"❌ Error during conversion: {e}", ephemeral=True)
+        await interaction.followup.send(f"❌ Error during conversion: {e}")
 
 # -----------------
 # 7. Persistent Reminders
@@ -316,7 +316,7 @@ async def remind(interaction: discord.Interaction, time_string: str, task: str):
     # Parse time_string like '10m', '2h', '1d'
     match = re.fullmatch(r"(\d+)([mhd])", time_string.lower())
     if not match:
-        return await interaction.response.send_message("❌ Invalid format. Use `10m`, `2h`, `1d`.", ephemeral=True)
+        return await interaction.response.send_message("❌ Invalid format. Use `10m`, `2h`, `1d`.")
     
     amount = int(match.group(1))
     unit = match.group(2)
@@ -337,9 +337,9 @@ async def remind(interaction: discord.Interaction, time_string: str, task: str):
         await bot.db.execute("INSERT INTO reminders (user_id, trigger_time, task) VALUES (?, ?, ?)", 
                              (interaction.user.id, trigger_time, task))
         await bot.db.commit()
-        await interaction.response.send_message(f"✅ Reminder set for {time_string} from now: `{task}`", ephemeral=True)
+        await interaction.response.send_message(f"✅ Reminder set for {time_string} from now: `{task}`")
     except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to set reminder: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ Failed to set reminder: {e}")
 
 # -----------------
 # 8. Litecoin Send
@@ -354,7 +354,7 @@ class ConfirmSendView(discord.ui.View):
     @discord.ui.button(label="Confirm Send", style=discord.ButtonStyle.green)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != OWNER_ID:
-            return await interaction.response.send_message("❌ You are not the owner.", ephemeral=True)
+            return await interaction.response.send_message("❌ You are not the owner.")
         self.value = True
         self.stop()
         await interaction.response.edit_message(content="Processing transaction... please wait.", embed=None, view=None)
@@ -362,7 +362,7 @@ class ConfirmSendView(discord.ui.View):
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != OWNER_ID:
-            return await interaction.response.send_message("❌ You are not the owner.", ephemeral=True)
+            return await interaction.response.send_message("❌ You are not the owner.")
         self.value = False
         self.stop()
         await interaction.response.edit_message(content="Transaction cancelled.", embed=None, view=None)
@@ -381,7 +381,7 @@ async def ltc_send(interaction: discord.Interaction, to_address: str, amount: fl
     embed.set_footer(text="Please verify the address. Transactions cannot be reversed.")
     
     view = ConfirmSendView(to_address, amount)
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    await interaction.response.send_message(embed=embed, view=view)
     
     await view.wait()
     
