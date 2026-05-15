@@ -158,7 +158,9 @@ def safe_calc(expression: str) -> float:
     # We can safely use eval, but we still disable builtins.
     return float(eval(expression, {"__builtins__": {}}))
 
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="calc", description="Calculate a math expression (supports basic math and percentages like 100 + 5%)")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="calc", description="Calculate a math expression (supports basic math and percentages like 100 + 5%)")
 @is_owner()
 async def calc(interaction: discord.Interaction, expression: str):
     try:
@@ -170,7 +172,9 @@ async def calc(interaction: discord.Interaction, expression: str):
 # -----------------
 # 2. PayPal
 # -----------------
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="paypal", description="Get the PayPal email and terms of service")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="paypal", description="Get the PayPal email and terms of service")
 @is_owner()
 async def paypal(interaction: discord.Interaction):
     embed = discord.Embed(title="PayPal Information", color=discord.Color.blue())
@@ -181,7 +185,9 @@ async def paypal(interaction: discord.Interaction):
 # -----------------
 # 3. Litecoin Address
 # -----------------
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="ltc_address", description="Show the Litecoin address")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="ltc_address", description="Show the Litecoin address")
 @is_owner()
 async def ltc_address_cmd(interaction: discord.Interaction):
     embed = discord.Embed(title="Litecoin Address", color=discord.Color.light_gray())
@@ -195,7 +201,9 @@ def fetch_tx(txid: str):
     url = f"https://api.blockcypher.com/v1/ltc/main/txs/{txid}"
     return requests.get(url)
 
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="ltc_tx", description="Look up a Litecoin transaction by TXID")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="ltc_tx", description="Look up a Litecoin transaction by TXID")
 @is_owner()
 async def ltc_tx(interaction: discord.Interaction, txid: str):
     await interaction.response.defer(ephemeral=True)
@@ -225,7 +233,9 @@ async def ltc_tx(interaction: discord.Interaction, txid: str):
 # -----------------
 # 5. Stealth Webhook
 # -----------------
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="webhook_send", description="Send a stealth webhook message")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="webhook_send", description="Send a stealth webhook message")
 @is_owner()
 async def webhook_send(interaction: discord.Interaction, url: str, message: str):
     await interaction.response.defer(ephemeral=True)
@@ -244,7 +254,9 @@ from discord.app_commands import Choice
 # -----------------
 # 6. Master Converter
 # -----------------
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="cv", description="Convert between Fiat (EUR/USD) and Crypto (LTC)")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="cv", description="Convert between Fiat (EUR/USD) and Crypto (LTC)")
 @app_commands.choices(from_curr=[
     Choice(name="EUR", value="EUR"),
     Choice(name="USD", value="USD"),
@@ -296,7 +308,9 @@ async def cv(interaction: discord.Interaction, amount: float, from_curr: str, to
 # -----------------
 # 7. Persistent Reminders
 # -----------------
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="remind", description="Set a persistent reminder")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="remind", description="Set a persistent reminder")
 @is_owner()
 async def remind(interaction: discord.Interaction, time_string: str, task: str):
     # Parse time_string like '10m', '2h', '1d'
@@ -356,7 +370,9 @@ class ConfirmSendView(discord.ui.View):
 def send_tx(private_key, from_address, to_address, amount_satoshis):
     return ltc_crypto.send(private_key, from_address, to_address, amount_satoshis)
 
-@bot.tree.command(allowed_installs=discord.app_commands.AppInstallationType(user=True, guild=True), allowed_contexts=discord.app_commands.AppCommandContext(guild=True, bot_dm=True, private_channel=True), name="ltc_send", description="Send Litecoin to an address")
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="ltc_send", description="Send Litecoin to an address")
 @is_owner()
 async def ltc_send(interaction: discord.Interaction, to_address: str, amount: float):
     embed = discord.Embed(title="Confirm Transaction", color=discord.Color.orange())
