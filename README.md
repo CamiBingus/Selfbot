@@ -24,7 +24,11 @@ This bot provides features to perform basic calculations, display PayPal and Lit
 ## Zap-Hosting Setup Instructions
 
 1. Upload the following files to your Zap-Hosting server:
+<<<<<<< HEAD
    - `bot.py`
+=======
+   - `main.py`
+>>>>>>> 8e197fa (Fix Zap-Hosting entrypoint error by renaming bot.py to main.py)
    - `config.json`
    - `requirements.txt`
 
@@ -43,7 +47,11 @@ This bot provides features to perform basic calculations, display PayPal and Lit
 
 4. Start the bot! Depending on Zap-Hosting's setup, you might just click "Start" or run:
    ```bash
+<<<<<<< HEAD
    python3 bot.py
+=======
+   python3 main.py
+>>>>>>> 8e197fa (Fix Zap-Hosting entrypoint error by renaming bot.py to main.py)
    ```
 
 ## Usage
