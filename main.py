@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from discord.app_commands import Choice
 from discord import app_commands
 import json
 import requests
@@ -1060,7 +1061,6 @@ async def webhook_send(interaction: discord.Interaction, url: str, message: str)
     except Exception as e:
         await interaction.followup.send(f"❌ Error sending webhook: {str(e)}")
 
-from discord.app_commands import Choice
 
 # -----------------
 # 6. Master Converter
