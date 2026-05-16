@@ -24,11 +24,7 @@ This bot provides features to perform basic calculations, display PayPal and Lit
 ## Zap-Hosting Setup Instructions
 
 1. Upload the following files to your Zap-Hosting server:
-<<<<<<< HEAD
-   - `bot.py`
-=======
    - `main.py`
->>>>>>> 8e197fa (Fix Zap-Hosting entrypoint error by renaming bot.py to main.py)
    - `config.json`
    - `requirements.txt`
 
@@ -47,11 +43,7 @@ This bot provides features to perform basic calculations, display PayPal and Lit
 
 4. Start the bot! Depending on Zap-Hosting's setup, you might just click "Start" or run:
    ```bash
-<<<<<<< HEAD
-   python3 bot.py
-=======
    python3 main.py
->>>>>>> 8e197fa (Fix Zap-Hosting entrypoint error by renaming bot.py to main.py)
    ```
 
 ## Usage
@@ -68,12 +60,38 @@ Once running, you can use the following slash commands anywhere on Discord:
 - `/ltc_tx <txid>`: Look up an LTC transaction status manually.
 - `/ltc_send <address> <amount>`: Send Litecoin with a safe confirmation prompt.
 
-**🛠 Productivity & Utility**
-- `/help`: Display a help menu showing all these commands inside Discord.
+**🛠 Utilities & OSINT**
 - `/remind <time_string> <task>`: Set a persistent reminder (e.g. `10m`, `2h`, `1d`).
 - `/notes <action>`: Securely add, list, or delete text snippets.
 - `/tempmail <action>`: Generate a disposable email address and read its inbox.
 - `/webhook_send <url> <message>`: Send a stealth POST message to a webhook.
 - `/steam_lookup <query>`: Fetch public profile details of a Steam user.
+- `/social_scan <email>`: Check if an email is registered to a major service or if it's a disposable email.
+- `/name_check <username>`: Check username availability on major sites (GitHub, Twitter, Reddit).
+- `/metadata <action> <image>`: Read or completely strip hidden EXIF metadata from an image.
+- `/speedtest`: Run a network speedtest on the Zap-Hosting server.
+- `/obfuscate :` Scramble small code snippets to make them harder to read.
 
-**Security Warning:** Because this bot has access to your private key, ensure your Zap-Hosting account is secure. Do not share the config.json file with anyone.
+**🎨 Media & Trolling**
+- `/nitro_gen`: Generates fake Discord Nitro gift links.
+- `/fake_message`: Uses Webhooks to perfectly impersonate another user in chat.
+- `/deepfry`: Brutally deepfry an attached image (saturation, contrast).
+- `/tts_mp3`: Generate a Text-to-Speech audio `.mp3` file from text.
+
+**👑 Discord Power-User**
+- `/server_clone <server_id>`: Clone a server's category and channel layout securely into your Notes.
+- `/fake_activity`: Set a custom rich presence activity (e.g., Playing GTA VI).
+- `/avatar <user_id>`: Grab the highest resolution avatar of any user.
+- `/id_decode <snowflake>`: Decode any Discord ID to tell you the exact millisecond it was created.
+
+**⚡ Prefix Fast-Commands**
+The bot features a dynamic prefix system (default is `,`). These commands do not use the `/` slash menu for extremely fast execution:
+- `,prefix <new_prefix>`: Change the bot's global prefix dynamically.
+- `,ytdl <url>`: Download YouTube videos cleanly without watermarks.
+- `,tiktok <url>`: Download TikTok videos cleanly without watermarks.
+- `,spotify <url>`: Download a Spotify track as an MP3.
+- `,steal <emoji>`: Instantly steal a custom emoji and add it to the server you are in.
+- `,lock`: Lock down the current channel permissions so nobody can type.
+- `,paypal`, `,ltc`, `,txid`, `,help`: Fast aliases for their slash command equivalents.
+
+**Security Warning:** Because this bot has access to your private key, ensure your Zap-Hosting account is secure. Do not share the config.json file with anyone. All commands are heavily restricted to the `OWNER_ID` defined in the config.
