@@ -318,10 +318,10 @@ async def prefix_ltc(ctx):
 @bot.command(name="help")
 async def prefix_help(ctx):
     embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
-    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`"
-    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`"
-    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`"
-    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`"
+    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`, `tx_fee_calc`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`, `discord_token`, `weather`, `timezones`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`, `uwuify`, `zalgo`, `hack_screen`"
+    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`, `banner_steal`, `guild_icon`, `whois_discord`, `embed_builder`, `role_color`, `server_stats`"
     cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
 
     embed.add_field(name="💳 Finance & Crypto", value=cat_crypto, inline=False)
@@ -436,6 +436,108 @@ async def id_decode(interaction: discord.Interaction, snowflake: str):
     except:
         await interaction.response.send_message("❌ Invalid Snowflake ID.")
 
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="banner_steal", description="Grab a user's or server's high-res banner")
+@is_owner()
+async def banner_steal(interaction: discord.Interaction, user_id: str = None):
+    await interaction.response.defer()
+    try:
+        if user_id:
+            user = await bot.fetch_user(int(user_id))
+            if user.banner:
+                embed = discord.Embed(title=f"{user.name}'s Banner", color=discord.Color.purple())
+                embed.set_image(url=user.banner.url)
+                return await interaction.followup.send(embed=embed)
+            else:
+                return await interaction.followup.send("❌ This user does not have a banner.")
+        else:
+            if interaction.guild and interaction.guild.banner:
+                embed = discord.Embed(title=f"{interaction.guild.name}'s Banner", color=discord.Color.purple())
+                embed.set_image(url=interaction.guild.banner.url)
+                return await interaction.followup.send(embed=embed)
+            else:
+                return await interaction.followup.send("❌ This server does not have a banner.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="guild_icon", description="Steal the current server's high-res icon")
+@is_owner()
+async def guild_icon(interaction: discord.Interaction):
+    if interaction.guild and interaction.guild.icon:
+        embed = discord.Embed(title=f"{interaction.guild.name} Icon", color=discord.Color.gold())
+        embed.set_image(url=interaction.guild.icon.url)
+        await interaction.response.send_message(embed=embed)
+    else:
+        await interaction.response.send_message("❌ This is not a server, or it has no icon.")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="whois_discord", description="Get detailed Discord user info")
+@is_owner()
+async def whois_discord(interaction: discord.Interaction, user_id: str):
+    await interaction.response.defer()
+    try:
+        user = await bot.fetch_user(int(user_id))
+        embed = discord.Embed(title=f"User Info: {user.name}", color=discord.Color.blue())
+        embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
+        embed.add_field(name="ID", value=user.id, inline=False)
+        embed.add_field(name="Created At", value=user.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
+        embed.add_field(name="Bot?", value="Yes" if user.bot else "No", inline=True)
+        if user.public_flags:
+            flags = [flag[0] for flag in user.public_flags if flag[1]]
+            embed.add_field(name="Badges", value=", ".join(flags) if flags else "None", inline=True)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ User not found: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="role_color", description="Instantly change a role's hex color")
+@is_owner()
+async def role_color(interaction: discord.Interaction, role: discord.Role, hex_code: str):
+    try:
+        hex_code = hex_code.lstrip("#")
+        color = discord.Color(int(hex_code, 16))
+        await role.edit(color=color)
+        await interaction.response.send_message(f"✅ Role `{role.name}` color changed to `#{hex_code}`")
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Failed to edit role: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="server_stats", description="Display clean server stats")
+@is_owner()
+async def server_stats(interaction: discord.Interaction):
+    if not interaction.guild:
+        return await interaction.response.send_message("❌ You must run this in a server.")
+    g = interaction.guild
+    embed = discord.Embed(title=f"📊 {g.name} Stats", color=discord.Color.dark_theme())
+    embed.add_field(name="Members", value=g.member_count, inline=True)
+    embed.add_field(name="Channels", value=len(g.channels), inline=True)
+    embed.add_field(name="Roles", value=len(g.roles), inline=True)
+    embed.add_field(name="Boost Level", value=g.premium_tier, inline=True)
+    embed.add_field(name="Created", value=g.created_at.strftime("%Y-%m-%d"), inline=False)
+    if g.icon:
+        embed.set_thumbnail(url=g.icon.url)
+    await interaction.response.send_message(embed=embed)
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="embed_builder", description="Craft a custom rich embed")
+@is_owner()
+async def embed_builder(interaction: discord.Interaction, title: str, description: str, color_hex: str = "000000", image_url: str = None):
+    try:
+        color = discord.Color(int(color_hex.lstrip("#"), 16))
+        embed = discord.Embed(title=title, description=description, color=color)
+        if image_url:
+            embed.set_image(url=image_url)
+        await interaction.response.send_message(embed=embed)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error building embed: {e}")
+
 # -----------------
 # Fun & Trolling Features
 # -----------------
@@ -468,6 +570,85 @@ async def fake_message(interaction: discord.Interaction, user_id: str, text: str
         await interaction.followup.send("✅ Fake message sent.", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"❌ Failed to fake message. (Do I have webhook perms?): {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="audio_extract", description="Strip the MP3 audio track from an MP4 video")
+@is_owner()
+async def audio_extract(interaction: discord.Interaction, video: discord.Attachment):
+    await interaction.response.defer()
+    try:
+        if not video.content_type.startswith('video/'):
+            return await interaction.followup.send("❌ Must be a video file.")
+            
+        video_bytes = await video.read()
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_vid:
+            temp_vid.write(video_bytes)
+            temp_vid_path = temp_vid.name
+            
+        out_path = temp_vid_path.replace(".mp4", ".mp3")
+        
+        process = await asyncio.create_subprocess_shell(
+            f'ffmpeg -i "{temp_vid_path}" -q:a 0 -map a "{out_path}" -y',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.communicate()
+        
+        if process.returncode == 0:
+            await interaction.followup.send(file=discord.File(out_path, filename="extracted.mp3"))
+        else:
+            await interaction.followup.send("❌ FFmpeg failed to extract audio.")
+            
+        # Cleanup
+        if os.path.exists(temp_vid_path): os.remove(temp_vid_path)
+        if os.path.exists(out_path): os.remove(out_path)
+        
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="uwuify", description="Translate text into uwu speak")
+@is_owner()
+async def uwuify(interaction: discord.Interaction, text: str):
+    text = text.replace('r', 'w').replace('R', 'W').replace('l', 'w').replace('L', 'W')
+    text = text.replace('you', 'uwu').replace('You', 'Uwu')
+    await interaction.response.send_message(f"{text} uwu")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="zalgo", description="Corrupt text with demonic markings")
+@is_owner()
+async def zalgo(interaction: discord.Interaction, text: str):
+    zalgo_chars = [chr(i) for i in range(0x0300, 0x036F + 1)]
+    out = ""
+    for char in text:
+        out += char
+        for _ in range(random.randint(2, 6)):
+            out += random.choice(zalgo_chars)
+    await interaction.response.send_message(out[:2000])
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="hack_screen", description="Output scrolling movie-hacker text")
+@is_owner()
+async def hack_screen(interaction: discord.Interaction):
+    lines = [
+        "[+] Bypassing mainframe firewall...",
+        "[!] Accessing secure root directory...",
+        "[-] Injecting payload to memory sector 0x4B3A",
+        "[+] Decrypting RSA-4096 hash...",
+        "[!] Privilege escalation successful (root/UID 0)",
+        "[-] Scrubbing proxy logs...",
+        "[+] Establishing persistent reverse shell...",
+        "[!] Target compromised. Connection established."
+    ]
+    await interaction.response.send_message("```yaml\n" + "\n".join(lines) + "\n```")
+
 
 from PIL import Image, ImageEnhance
 import io
@@ -521,6 +702,103 @@ async def tts_mp3(interaction: discord.Interaction, text: str):
 # -----------------
 import base64
 from PIL.ExifTags import TAGS
+from datetime import datetime
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="discord_token", description="Decode a Discord Token safely offline")
+@is_owner()
+async def discord_token(interaction: discord.Interaction, token: str):
+    try:
+        parts = token.split('.')
+        if len(parts) < 2:
+            return await interaction.response.send_message("❌ Invalid token format.")
+            
+        # Parse User ID
+        user_id_b64 = parts[0]
+        # Pad base64 if needed
+        user_id_b64 += '=' * (-len(user_id_b64) % 4)
+        user_id = base64.b64decode(user_id_b64).decode()
+        
+        # Parse Creation Timestamp
+        timestamp_b64 = parts[1]
+        timestamp_b64 += '=' * (-len(timestamp_b64) % 4)
+        timestamp_bytes = base64.urlsafe_b64decode(timestamp_b64)
+        timestamp_int = int.from_bytes(timestamp_bytes, byteorder='big')
+        discord_epoch = 1293840000
+        timestamp = timestamp_int + discord_epoch
+        dt = datetime.fromtimestamp(timestamp, tz=pytz.timezone('UTC'))
+        
+        embed = discord.Embed(title="Token Decoded", color=discord.Color.red())
+        embed.add_field(name="User ID", value=user_id, inline=False)
+        embed.add_field(name="Token Created At", value=dt.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
+        embed.set_footer(text="Decoded entirely offline. No API requests were made.")
+        await interaction.response.send_message(embed=embed)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Failed to decode token: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="weather", description="Check global live weather")
+@is_owner()
+async def weather(interaction: discord.Interaction, city: str):
+    await interaction.response.defer()
+    try:
+        url = f"https://wttr.in/{city}?format=3"
+        async with bot.session.get(url) as resp:
+            data = await resp.text()
+            await interaction.followup.send(f"**Weather:** {data.strip()}")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="timezones", description="Compare current times across global cities")
+@is_owner()
+async def timezones(interaction: discord.Interaction):
+    cities = {
+        "New York": "America/New_York",
+        "London": "Europe/London",
+        "Berlin": "Europe/Berlin",
+        "Tokyo": "Asia/Tokyo",
+        "Sydney": "Australia/Sydney"
+    }
+    out = []
+    for city, tz_str in cities.items():
+        tz = pytz.timezone(tz_str)
+        t = datetime.now(tz).strftime("%I:%M %p")
+        out.append(f"**{city}**: `{t}`")
+    await interaction.response.send_message("\n".join(out))
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="tx_fee_calc", description="Calculate average LTC network fee in Fiat")
+@is_owner()
+async def tx_fee_calc(interaction: discord.Interaction):
+    await interaction.response.defer()
+    try:
+        url = "https://api.blockcypher.com/v1/ltc/main"
+        async with bot.session.get(url) as resp:
+            data = await resp.json()
+            high_fee_kb = data.get("high_fee_per_kb", 0) / 100000000
+            
+        price_url = "https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=usd,eur"
+        async with bot.session.get(price_url) as resp:
+            price_data = await resp.json()
+            ltc_usd = price_data["litecoin"]["usd"]
+            ltc_eur = price_data["litecoin"]["eur"]
+            
+        avg_tx_size = 0.25 # KB
+        fee_ltc = high_fee_kb * avg_tx_size
+        fee_usd = fee_ltc * ltc_usd
+        fee_eur = fee_ltc * ltc_eur
+        
+        embed = discord.Embed(title="LTC High Priority Fee", color=discord.Color.light_gray())
+        embed.add_field(name="LTC", value=f"{fee_ltc:,.6f}", inline=False)
+        embed.add_field(name="Fiat", value=f"${fee_usd:,.3f} USD | €{fee_eur:,.3f} EUR", inline=False)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
 
 @discord.app_commands.allowed_installs(guilds=True, users=True)
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
@@ -1105,10 +1383,10 @@ async def set_ltc_log(interaction: discord.Interaction, channel_id: str):
 async def help_cmd(interaction: discord.Interaction):
     embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
     
-    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`"
-    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`"
-    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`"
-    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`"
+    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`, `tx_fee_calc`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`, `discord_token`, `weather`, `timezones`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`, `uwuify`, `zalgo`, `hack_screen`"
+    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`, `banner_steal`, `guild_icon`, `whois_discord`, `embed_builder`, `role_color`, `server_stats`"
     cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
 
     embed.add_field(name="💳 Finance & Crypto", value=cat_crypto, inline=False)

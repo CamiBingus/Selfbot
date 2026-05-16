@@ -71,18 +71,31 @@ Once running, you can use the following slash commands anywhere on Discord:
 - `/metadata <action> <image>`: Read or completely strip hidden EXIF metadata from an image.
 - `/speedtest`: Run a network speedtest on the Zap-Hosting server.
 - `/obfuscate :` Scramble small code snippets to make them harder to read.
+- `/discord_token <token>`: Decode a Discord token purely offline (reveals ID and creation date).
+- `/weather <city>`: Get live global weather conditions.
+- `/timezones`: Instantly check current times across 5 global financial cities.
 
 **🎨 Media & Trolling**
 - `/nitro_gen`: Generates fake Discord Nitro gift links.
 - `/fake_message`: Uses Webhooks to perfectly impersonate another user in chat.
 - `/deepfry`: Brutally deepfry an attached image (saturation, contrast).
 - `/tts_mp3`: Generate a Text-to-Speech audio `.mp3` file from text.
+- `/audio_extract`: Upload an MP4 and strip the audio track out as an MP3.
+- `/uwuify`: Degenerate text converter.
+- `/zalgo`: Corrupt your text using demonic Unicode characters.
+- `/hack_screen`: Outputs scrolling green hacker text.
 
 **👑 Discord Power-User**
 - `/server_clone <server_id>`: Clone a server's category and channel layout securely into your Notes.
 - `/fake_activity`: Set a custom rich presence activity (e.g., Playing GTA VI).
 - `/avatar <user_id>`: Grab the highest resolution avatar of any user.
+- `/banner_steal <user_id>`: Grab a high-res banner from any user or server.
+- `/guild_icon`: Steal the high-res icon of the server you are in.
+- `/whois_discord <user_id>`: Get detailed account creation dates, bot flags, and badges.
 - `/id_decode <snowflake>`: Decode any Discord ID to tell you the exact millisecond it was created.
+- `/role_color <role> <hex>`: Instantly modify a role's color using a hex code.
+- `/server_stats`: Generate a rich embed showing member counts, channel counts, and boost level.
+- `/embed_builder`: Dynamically construct your own fully custom rich embeds.
 
 **⚡ Prefix Fast-Commands**
 The bot features a dynamic prefix system (default is `,`). These commands do not use the `/` slash menu for extremely fast execution:
