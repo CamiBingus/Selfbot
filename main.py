@@ -8,6 +8,7 @@ import asyncio
 import aiohttp
 import aiosqlite
 import pytz
+import subprocess
 from datetime import datetime, timedelta
 from cryptos import Litecoin
 
@@ -30,9 +31,14 @@ PAYPAL_TOS = config.get("PAYPAL_TOS", "")
 # Initialize Bot
 class MyBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.default())
+        # We use a callable prefix to allow dynamic prefixes from the database
+        super().__init__(command_prefix=self.get_dynamic_prefix, intents=discord.Intents.default())
         self.session = None
         self.db = None
+        self.current_prefix = ","
+
+    async def get_dynamic_prefix(self, bot, message):
+        return self.current_prefix
 
     async def setup_hook(self):
         # Initialize shared aiohttp session for memory efficiency
@@ -64,13 +70,19 @@ class MyBot(commands.Bot):
         ''')
         await self.db.commit()
         
+        # Load the custom prefix
+        async with self.db.execute("SELECT value FROM settings WHERE key = 'prefix'") as cursor:
+            row = await cursor.fetchone()
+            if row:
+                self.current_prefix = row[0]
+
         # Start the background tasks
         self.check_reminders.start()
         self.ltc_tracker.start()
 
         # Syncing commands to allow them to be user-installable
         await self.tree.sync()
-        print(f"Synced slash commands for {self.user}")
+        print(f"Synced slash commands for {self.user} with prefix '{self.current_prefix}'")
         
     async def close(self):
         # Clean up resources
@@ -187,6 +199,16 @@ def is_owner():
         return interaction.user.id == OWNER_ID
     return app_commands.check(predicate)
 
+def check_prefix_owner():
+    async def predicate(ctx: commands.Context):
+        return ctx.author.id == OWNER_ID
+    return commands.check(predicate)
+
+@bot.check
+async def global_check(ctx: commands.Context):
+    # Ensure all prefix commands are strictly restricted to the owner
+    return ctx.author.id == OWNER_ID
+
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CheckFailure):
@@ -196,6 +218,436 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         # Generic error fallback
         if not interaction.response.is_done():
             await interaction.response.send_message(f"An error occurred: {error}")
+
+# -----------------
+# Prefix Commands & Media/Downloads
+# -----------------
+@bot.command(name="ytdl")
+async def ytdl(ctx, url: str):
+    msg = await ctx.send("⏳ Downloading YouTube video...")
+    try:
+        # Use yt-dlp to download and output the filename
+        process = await asyncio.create_subprocess_shell(
+            f'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --max-filesize 24M -o "media_%(id)s.%(ext)s" --print filename {url}',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            filename = stdout.decode().strip()
+            await ctx.send(file=discord.File(filename))
+            import os
+            os.remove(filename)
+            await msg.delete()
+        else:
+            await msg.edit(content=f"❌ Failed to download. Ensure the file is under 24MB.")
+    except Exception as e:
+        await msg.edit(content=f"❌ Error: {e}")
+
+@bot.command(name="tiktok")
+async def tiktok_dl(ctx, url: str):
+    msg = await ctx.send("⏳ Downloading TikTok...")
+    try:
+        # yt-dlp automatically downloads watermark-free for TikTok
+        process = await asyncio.create_subprocess_shell(
+            f'yt-dlp --max-filesize 24M -o "media_%(id)s.%(ext)s" --print filename {url}',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            filename = stdout.decode().strip()
+            await ctx.send(file=discord.File(filename))
+            import os
+            os.remove(filename)
+            await msg.delete()
+        else:
+            await msg.edit(content=f"❌ Failed to download TikTok.")
+    except Exception as e:
+        await msg.edit(content=f"❌ Error: {e}")
+
+@bot.command(name="spotify")
+async def spotify_dl(ctx, url: str):
+    # Due to Spotify's DRM, standard yt-dlp doesn't download direct tracks.
+    # We will use a public API or simply search yt-dlp via youtube
+    msg = await ctx.send("⏳ Downloading Spotify Track...")
+    try:
+        # Search the spotify title on youtube and download audio
+        process = await asyncio.create_subprocess_shell(
+            f'yt-dlp -x --audio-format mp3 --max-filesize 24M -o "media_%(id)s.%(ext)s" --print filename "ytsearch1:{url}"',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            filename = stdout.decode().strip().split('\n')[-1] # Sometimes prints multiple lines, grab the last one
+            
+            # Since we extract to mp3, the extension changes
+            filename = filename.rsplit('.', 1)[0] + '.mp3'
+            
+            await ctx.send(file=discord.File(filename))
+            import os
+            os.remove(filename)
+            await msg.delete()
+        else:
+            await msg.edit(content=f"❌ Failed to download Spotify track.")
+    except Exception as e:
+        await msg.edit(content=f"❌ Error: {e}")
+bot.remove_command('help')
+
+@bot.command(name="prefix")
+async def change_prefix(ctx, new_prefix: str):
+    bot.current_prefix = new_prefix
+    await bot.db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('prefix', ?)", (new_prefix,))
+    await bot.db.commit()
+    await ctx.send(f"✅ Prefix changed to `{new_prefix}`")
+
+@bot.command(name="paypal")
+async def prefix_paypal(ctx):
+    embed = discord.Embed(title="PayPal Information", color=discord.Color.blue())
+    embed.add_field(name="Email", value=f"`{PAYPAL_EMAIL}`\n*(Click to copy)*", inline=False)
+    embed.add_field(name="Terms of Service", value=PAYPAL_TOS, inline=False)
+    await ctx.send(embed=embed)
+
+@bot.command(name="ltc")
+async def prefix_ltc(ctx):
+    embed = discord.Embed(title="Litecoin Address", color=discord.Color.light_gray())
+    embed.add_field(name="Address", value=f"`{LTC_ADDRESS}`\n*(Click to copy)*", inline=False)
+    await ctx.send(embed=embed)
+
+@bot.command(name="help")
+async def prefix_help(ctx):
+    embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
+    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`"
+    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`"
+    cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
+
+    embed.add_field(name="💳 Finance & Crypto", value=cat_crypto, inline=False)
+    embed.add_field(name="🛠 Utilities & OSINT", value=cat_util, inline=False)
+    embed.add_field(name="🎨 Media & Trolling", value=cat_media, inline=False)
+    embed.add_field(name="👑 Discord Power-User", value=cat_discord, inline=False)
+    embed.add_field(name="⚡ Prefix Fast-Commands", value=cat_prefix, inline=False)
+    await ctx.send(embed=embed)
+
+@bot.command(name="txid")
+async def prefix_txid(ctx, txid: str):
+    try:
+        loop = asyncio.get_running_loop()
+        url = f"https://api.blockcypher.com/v1/ltc/main/txs/{txid}"
+        response = await loop.run_in_executor(None, requests.get, url)
+        
+        if response.status_code == 200:
+            data = response.json()
+            confirmations = data.get("confirmations", 0)
+            total_sent = data.get("total", 0) / 100000000
+            fees = data.get("fees", 0) / 100000000
+            
+            embed = discord.Embed(title="Litecoin Transaction", url=f"https://live.blockcypher.com/ltc/tx/{txid}", color=discord.Color.green())
+            embed.add_field(name="TXID", value=f"`{txid}`", inline=False)
+            embed.add_field(name="Confirmations", value=str(confirmations), inline=True)
+            embed.add_field(name="Total Transacted", value=f"{total_sent} LTC", inline=True)
+            embed.add_field(name="Fees", value=f"{fees} LTC", inline=True)
+            
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"❌ Could not find transaction. BlockCypher returned status {response.status_code}.")
+    except Exception as e:
+        await ctx.send(f"❌ Error looking up transaction: {e}")
+
+# -----------------
+# Discord Power-User Features
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="server_clone", description="Clone server layout to Notes")
+@is_owner()
+async def server_clone(interaction: discord.Interaction, target_server_id: str):
+    await interaction.response.defer()
+    try:
+        target = bot.get_guild(int(target_server_id))
+        if not target:
+            return await interaction.followup.send("❌ Server not found. Make sure I'm in it!")
+            
+        layout = {"name": target.name, "categories": {}}
+        for category in target.categories:
+            layout["categories"][category.name] = [c.name for c in category.channels]
+            
+        json_dump = json.dumps(layout, indent=2)
+        if len(json_dump) > 3900:
+            json_dump = json_dump[:3900] + "..."
+            
+        # Save to Notes
+        await bot.db.execute("INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)", (interaction.user.id, f"Clone: {target.name}", json_dump))
+        await bot.db.commit()
+        await interaction.followup.send(f"✅ Successfully scraped layout for **{target.name}** and saved to `/notes`!")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@bot.command(name="steal")
+async def steal_emoji(ctx, emoji: discord.PartialEmoji, name: str = None):
+    try:
+        emoji_bytes = await emoji.read()
+        new_emoji = await ctx.guild.create_custom_emoji(name=name or emoji.name, image=emoji_bytes)
+        await ctx.send(f"✅ Stolen successfully: {new_emoji}")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to steal emoji: {e}")
+
+@bot.command(name="lock")
+async def lock_channel(ctx):
+    try:
+        await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
+        await ctx.send("🔒 Channel Locked.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to lock: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="fake_activity", description="Set a custom rich presence activity")
+@is_owner()
+async def fake_activity(interaction: discord.Interaction, text: str):
+    await bot.change_presence(activity=discord.Game(name=text))
+    await interaction.response.send_message(f"✅ Activity set to: Playing **{text}**")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="avatar", description="Get a user's avatar")
+@is_owner()
+async def grab_avatar(interaction: discord.Interaction, user_id: str):
+    try:
+        user = await bot.fetch_user(int(user_id))
+        embed = discord.Embed(title=f"{user.name}'s Avatar", color=discord.Color.purple())
+        embed.set_image(url=user.avatar.url if user.avatar else user.default_avatar.url)
+        await interaction.response.send_message(embed=embed)
+    except:
+        await interaction.response.send_message("❌ User not found.")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="id_decode", description="Decode a Discord Snowflake ID")
+@is_owner()
+async def id_decode(interaction: discord.Interaction, snowflake: str):
+    try:
+        discord_epoch = 1420070400000
+        timestamp = (int(snowflake) >> 22) + discord_epoch
+        dt = datetime.fromtimestamp(timestamp / 1000.0, tz=pytz.timezone('UTC'))
+        await interaction.response.send_message(f"✅ ID Created: **{dt.strftime('%Y-%m-%d %H:%M:%S')} UTC**")
+    except:
+        await interaction.response.send_message("❌ Invalid Snowflake ID.")
+
+# -----------------
+# Fun & Trolling Features
+# -----------------
+import random
+import string
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="nitro_gen", description="Generate fake Discord Nitro links")
+@is_owner()
+async def nitro_gen(interaction: discord.Interaction, count: int = 5):
+    links = []
+    for _ in range(count):
+        code = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+        links.append(f"https://discord.gift/{code}")
+    await interaction.response.send_message("\n".join(links))
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="fake_message", description="Create a fake message via Webhook")
+@is_owner()
+async def fake_message(interaction: discord.Interaction, user_id: str, text: str):
+    await interaction.response.defer()
+    try:
+        user = await bot.fetch_user(int(user_id))
+        webhook = await interaction.channel.create_webhook(name=user.name)
+        avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
+        await webhook.send(text, username=user.name, avatar_url=avatar_url)
+        await webhook.delete()
+        await interaction.followup.send("✅ Fake message sent.", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Failed to fake message. (Do I have webhook perms?): {e}")
+
+from PIL import Image, ImageEnhance
+import io
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="deepfry", description="Deepfry an attached image")
+@is_owner()
+async def deepfry(interaction: discord.Interaction, attachment: discord.Attachment):
+    await interaction.response.defer()
+    try:
+        if not attachment.content_type.startswith('image/'):
+            return await interaction.followup.send("❌ Must be an image.")
+            
+        image_bytes = await attachment.read()
+        img = Image.open(io.BytesIO(image_bytes))
+        img = img.convert('RGB')
+        
+        # Deepfry magic
+        img = ImageEnhance.Color(img).enhance(3.0)
+        img = ImageEnhance.Contrast(img).enhance(3.0)
+        img = ImageEnhance.Sharpness(img).enhance(5.0)
+        
+        output = io.BytesIO()
+        img.save(output, format="JPEG", quality=10)
+        output.seek(0)
+        
+        await interaction.followup.send(file=discord.File(output, filename="deepfry.jpg"))
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+from gtts import gTTS
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="tts_mp3", description="Generate a TTS audio file")
+@is_owner()
+async def tts_mp3(interaction: discord.Interaction, text: str):
+    await interaction.response.defer()
+    try:
+        tts = gTTS(text=text, lang='en')
+        output = io.BytesIO()
+        tts.write_to_fp(output)
+        output.seek(0)
+        await interaction.followup.send(file=discord.File(output, filename="tts.mp3"))
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+# -----------------
+# OSINT & Advanced Utilities
+# -----------------
+import base64
+from PIL.ExifTags import TAGS
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="social_scan", description="Check if an email is registered to a major service")
+@is_owner()
+async def social_scan(interaction: discord.Interaction, email: str):
+    await interaction.response.defer()
+    try:
+        # A simple check for MX records via a public API 
+        url = f"https://api.eva.pingutil.com/email?email={email}"
+        async with bot.session.get(url) as resp:
+            data = await resp.json()
+            if data.get("status") == "success":
+                info = data["data"]
+                embed = discord.Embed(title=f"Email Scan: {email}", color=discord.Color.blue())
+                embed.add_field(name="Deliverable", value="✅ Yes" if info.get("deliverable") else "❌ No")
+                embed.add_field(name="Disposable", value="✅ Yes" if info.get("disposable") else "❌ No")
+                embed.add_field(name="Spam Trap", value="✅ Yes" if info.get("spam") else "❌ No")
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("❌ Error parsing email.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="name_check", description="Check username availability on major sites")
+@is_owner()
+async def name_check(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    sites = {
+        "GitHub": f"https://github.com/{username}",
+        "Twitter/X": f"https://nitter.net/{username}",
+        "Reddit": f"https://www.reddit.com/user/{username}"
+    }
+    results = []
+    for site, url in sites.items():
+        try:
+            async with bot.session.get(url, timeout=3) as resp:
+                if resp.status == 404:
+                    results.append(f"✅ **{site}**: Available (or suspended)")
+                else:
+                    results.append(f"❌ **{site}**: Taken")
+        except:
+            results.append(f"⚠️ **{site}**: Error checking")
+            
+    await interaction.followup.send("\n".join(results))
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="metadata", description="Read or strip EXIF metadata from an image")
+@app_commands.choices(action=[
+    Choice(name="Read Metadata", value="read"),
+    Choice(name="Strip Metadata", value="strip"),
+])
+@is_owner()
+async def metadata(interaction: discord.Interaction, action: str, attachment: discord.Attachment):
+    await interaction.response.defer()
+    try:
+        image_bytes = await attachment.read()
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        if action == "read":
+            exifdata = img.getexif()
+            if not exifdata:
+                return await interaction.followup.send("📭 No metadata found in this image.")
+                
+            out = []
+            for tag_id in exifdata:
+                tag = TAGS.get(tag_id, tag_id)
+                data = exifdata.get(tag_id)
+                if isinstance(data, bytes):
+                    data = data.decode(errors='replace')
+                out.append(f"**{tag}**: {data}")
+                
+            text = "\n".join(out)
+            if len(text) > 2000:
+                text = text[:1995] + "..."
+            await interaction.followup.send(text)
+            
+        elif action == "strip":
+            # Removing EXIF is as simple as saving without the exif param
+            data = list(img.getdata())
+            img_without_exif = Image.new(img.mode, img.size)
+            img_without_exif.putdata(data)
+            
+            output = io.BytesIO()
+            img_without_exif.save(output, format="PNG")
+            output.seek(0)
+            await interaction.followup.send(file=discord.File(output, filename="stripped.png"))
+            
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="speedtest", description="Run a speedtest on the Zap-Hosting server")
+@is_owner()
+async def speedtest_cmd(interaction: discord.Interaction):
+    await interaction.response.defer()
+    try:
+        process = await asyncio.create_subprocess_shell(
+            'speedtest-cli --simple',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode == 0:
+            await interaction.followup.send(f"```yaml\n{stdout.decode().strip()}\n```")
+        else:
+            await interaction.followup.send(f"❌ Speedtest failed: {stderr.decode()}")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="obfuscate", description="Scramble code to make it harder to read")
+@is_owner()
+async def obfuscate(interaction: discord.Interaction, code: str):
+    await interaction.response.defer()
+    try:
+        # Simple base64 layer
+        encoded = base64.b64encode(code.encode()).decode()
+        obf = f"import base64;exec(base64.b64decode('{encoded}'))"
+        await interaction.followup.send(f"```python\n{obf}\n```")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}")
 
 # -----------------
 # 1. Calculator
@@ -644,40 +1096,32 @@ async def set_ltc_log(interaction: discord.Interaction, channel_id: str):
         await interaction.response.send_message(f"❌ Error setting log channel: {e}")
 
 # -----------------
-# 13. Help Command
+# Help Command
 # -----------------
 @discord.app_commands.allowed_installs(guilds=True, users=True)
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @bot.tree.command(name="help", description="Show all available commands and what they do")
 @is_owner()
 async def help_cmd(interaction: discord.Interaction):
-    embed = discord.Embed(title="🤖 Selfbot Command Menu", description="Here are all the utility and crypto commands currently loaded:", color=discord.Color.purple())
+    embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
     
-    commands_list = [
-        ("`/calc <expr>`", "Calculate math expressions safely, including percentages (e.g. `100 + 5%`)."),
-        ("`/paypal`", "Show your configured PayPal email and Terms of Service."),
-        ("`/ltc_address`", "Show your static public Litecoin address."),
-        ("`/ltc_tx <txid>`", "Look up a Litecoin transaction status manually."),
-        ("`/ltc_send <address> <amount>`", "Prompt confirmation to send LTC directly from your wallet via private key."),
-        ("`/portfolio`", "View your live LTC wallet balance converted to USD and EUR."),
-        ("`/set_ltc_log <channel_id>`", "Set a Discord channel to receive automatic notifications whenever your LTC address sends or receives money."),
-        ("`/cv <amount> <from> <to>`", "Convert seamlessly between EUR, USD, and LTC."),
-        ("`/webhook_send <url> <msg>`", "Send a stealth payload message to a webhook without logging the endpoint."),
-        ("`/remind <time> <task>`", "Set a persistent reminder using timeframes like `10m`, `2h`, `1d`."),
-        ("`/notes <action> <title> <content>`", "Manage secure, private text snippets and notes across devices."),
-        ("`/tempmail <action>`", "Generate a disposable email and read its inbox directly on Discord."),
-        ("`/steam_lookup <query>`", "Lookup Steam ID, real name, and avatar by providing a vanity URL or ID.")
-    ]
-    
-    for cmd, desc in commands_list:
-        embed.add_field(name=cmd, value=desc, inline=False)
+    cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`"
+    cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`"
+    cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
+
+    embed.add_field(name="💳 Finance & Crypto", value=cat_crypto, inline=False)
+    embed.add_field(name="🛠 Utilities & OSINT", value=cat_util, inline=False)
+    embed.add_field(name="🎨 Media & Trolling", value=cat_media, inline=False)
+    embed.add_field(name="👑 Discord Power-User", value=cat_discord, inline=False)
+    embed.add_field(name="⚡ Prefix Fast-Commands", value=cat_prefix, inline=False)
         
-    embed.set_footer(text="All commands are restricted to the bot owner.")
     await interaction.response.send_message(embed=embed)
 
 
 # -----------------
-# 14. Litecoin Send
+# End of File
 # -----------------
 class ConfirmSendView(discord.ui.View):
     def __init__(self, to_address: str, amount_ltc: float):
