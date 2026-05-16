@@ -56,11 +56,24 @@ This bot provides features to perform basic calculations, display PayPal and Lit
 
 ## Usage
 
-Once running, you can use the following slash commands in any server or DM:
-- `/calc <expression>`: Evaluate math expressions.
-- `/paypal`: Shows your PayPal email and TOS in a copyable embed.
-- `/ltc_address`: Shows your Litecoin address in a copyable embed.
-- `/ltc_tx <txid>`: Checks the status of an LTC transaction via BlockCypher.
-- `/ltc_send <address> <amount>`: Prompts a confirmation to send LTC from your wallet.
+Once running, you can use the following slash commands anywhere on Discord:
+
+**💳 Finance & Crypto**
+- `/portfolio`: Check your live Litecoin balance and its Fiat value in USD and EUR.
+- `/set_ltc_log <channel_id>`: Set a channel to receive automatic logs when your LTC address sends or receives money.
+- `/cv <amount> <from> <to>`: Convert between Fiat (EUR/USD) and Crypto (LTC).
+- `/calc <expression>`: Safely calculate math expressions and percentages.
+- `/paypal`: Retrieve the configured PayPal email and Terms of Service.
+- `/ltc_address`: Output your public Litecoin address.
+- `/ltc_tx <txid>`: Look up an LTC transaction status manually.
+- `/ltc_send <address> <amount>`: Send Litecoin with a safe confirmation prompt.
+
+**🛠 Productivity & Utility**
+- `/help`: Display a help menu showing all these commands inside Discord.
+- `/remind <time_string> <task>`: Set a persistent reminder (e.g. `10m`, `2h`, `1d`).
+- `/notes <action>`: Securely add, list, or delete text snippets.
+- `/tempmail <action>`: Generate a disposable email address and read its inbox.
+- `/webhook_send <url> <message>`: Send a stealth POST message to a webhook.
+- `/steam_lookup <query>`: Fetch public profile details of a Steam user.
 
 **Security Warning:** Because this bot has access to your private key, ensure your Zap-Hosting account is secure. Do not share the config.json file with anyone.

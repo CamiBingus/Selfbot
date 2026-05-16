@@ -38,7 +38,7 @@ class MyBot(commands.Bot):
         # Initialize shared aiohttp session for memory efficiency
         self.session = aiohttp.ClientSession()
         
-        # Initialize SQLite Database for persistent reminders
+        # Initialize SQLite Database for persistent reminders and new features
         self.db = await aiosqlite.connect("reminders.db")
         await self.db.execute('''
             CREATE TABLE IF NOT EXISTS reminders (
@@ -48,10 +48,25 @@ class MyBot(commands.Bot):
                 task TEXT
             )
         ''')
+        await self.db.execute('''
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                title TEXT,
+                content TEXT
+            )
+        ''')
+        await self.db.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
         await self.db.commit()
         
-        # Start the background task for reminders
+        # Start the background tasks
         self.check_reminders.start()
+        self.ltc_tracker.start()
 
         # Syncing commands to allow them to be user-installable
         await self.tree.sync()
@@ -91,6 +106,72 @@ class MyBot(commands.Bot):
 
     @check_reminders.before_loop
     async def before_check_reminders(self):
+        await self.wait_until_ready()
+
+    @tasks.loop(minutes=3)
+    async def ltc_tracker(self):
+        if not self.db or not LTC_ADDRESS:
+            return
+            
+        try:
+            # Check if there is a logging channel set
+            async with self.db.execute("SELECT value FROM settings WHERE key = 'ltc_log_channel'") as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return
+                channel_id = int(row[0])
+                
+            # Fetch transactions for our address
+            url = f"https://api.blockcypher.com/v1/ltc/main/addrs/{LTC_ADDRESS}/full?limit=1"
+            async with self.session.get(url) as resp:
+                if resp.status != 200:
+                    return
+                data = await resp.json()
+                
+            txs = data.get('txs', [])
+            if not txs:
+                return
+                
+            latest_tx = txs[0]
+            tx_hash = latest_tx['hash']
+            
+            # Check if we already logged this transaction
+            async with self.db.execute("SELECT value FROM settings WHERE key = 'last_ltc_tx'") as cursor:
+                last_tx_row = await cursor.fetchone()
+                if last_tx_row and last_tx_row[0] == tx_hash:
+                    return # Already processed
+                    
+            # We have a new transaction! Let's analyze it
+            # Determine if it's sending or receiving by looking at inputs/outputs
+            # A simple heuristic: if our address is in inputs, we sent it.
+            is_send = False
+            for input_obj in latest_tx.get('inputs', []):
+                if LTC_ADDRESS in input_obj.get('addresses', []):
+                    is_send = True
+                    break
+                    
+            amount = latest_tx.get('total', 0) / 100000000
+            
+            # Send notification to channel
+            channel = self.get_channel(channel_id)
+            if channel:
+                embed = discord.Embed(
+                    title="📤 Litecoin Sent!" if is_send else "📥 Litecoin Received!",
+                    color=discord.Color.red() if is_send else discord.Color.green()
+                )
+                embed.add_field(name="Amount", value=f"**{amount} LTC**", inline=False)
+                embed.add_field(name="TXID", value=f"[{tx_hash}](https://live.blockcypher.com/ltc/tx/{tx_hash})", inline=False)
+                await channel.send(embed=embed)
+                
+            # Update the last seen tx in db
+            await self.db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_ltc_tx', ?)", (tx_hash,))
+            await self.db.commit()
+            
+        except Exception as e:
+            print(f"LTC Tracker Error: {e}")
+
+    @ltc_tracker.before_loop
+    async def before_ltc_tracker(self):
         await self.wait_until_ready()
 
 bot = MyBot()
@@ -342,7 +423,261 @@ async def remind(interaction: discord.Interaction, time_string: str, task: str):
         await interaction.response.send_message(f"❌ Failed to set reminder: {e}")
 
 # -----------------
-# 8. Litecoin Send
+# 8. Portfolio Tracker
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="portfolio", description="Check your live Litecoin balance and its Fiat value")
+@is_owner()
+async def portfolio(interaction: discord.Interaction):
+    await interaction.response.defer()
+    try:
+        # Get live balance from Blockcypher
+        balance_url = f"https://api.blockcypher.com/v1/ltc/main/addrs/{LTC_ADDRESS}/balance"
+        async with bot.session.get(balance_url) as resp:
+            if resp.status != 200:
+                return await interaction.followup.send("❌ Could not fetch balance from Blockcypher.")
+            data = await resp.json()
+            ltc_balance = data.get("balance", 0) / 100000000
+
+        # Get live price from CoinGecko
+        price_url = "https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=usd,eur"
+        async with bot.session.get(price_url) as resp:
+            if resp.status != 200:
+                return await interaction.followup.send("❌ Could not fetch price from CoinGecko.")
+            price_data = await resp.json()
+            ltc_usd = price_data["litecoin"]["usd"]
+            ltc_eur = price_data["litecoin"]["eur"]
+
+        val_usd = ltc_balance * ltc_usd
+        val_eur = ltc_balance * ltc_eur
+
+        embed = discord.Embed(title="Crypto Portfolio", color=discord.Color.green())
+        embed.add_field(name="LTC Balance", value=f"**{ltc_balance:,.6f} LTC**", inline=False)
+        embed.add_field(name="Fiat Value", value=f"💵 ${val_usd:,.2f} USD\n💶 €{val_eur:,.2f} EUR", inline=False)
+        embed.set_footer(text=f"Address: {LTC_ADDRESS}")
+
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error fetching portfolio: {e}")
+
+# -----------------
+# 9. TempMail
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="tempmail", description="Generate or check a disposable email")
+@app_commands.choices(action=[
+    Choice(name="Generate New Email", value="gen"),
+    Choice(name="Check Inbox", value="inbox"),
+])
+@is_owner()
+async def tempmail(interaction: discord.Interaction, action: str, email: str = None, message_id: str = None):
+    await interaction.response.defer()
+    
+    try:
+        if action == "gen":
+            async with bot.session.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1") as resp:
+                data = await resp.json()
+                new_email = data[0]
+                
+            embed = discord.Embed(title="TempMail Generated", description=f"**Email:** `{new_email}`\n\nTo check the inbox, use `/tempmail action:Check Inbox email:{new_email}`", color=discord.Color.blue())
+            await interaction.followup.send(embed=embed)
+            
+        elif action == "inbox":
+            if not email or "@" not in email:
+                return await interaction.followup.send("❌ You must provide the generated `email` to check its inbox.")
+                
+            user, domain = email.split("@")
+            async with bot.session.get(f"https://www.1secmail.com/api/v1/?action=getMessages&login={user}&domain={domain}") as resp:
+                messages = await resp.json()
+                
+            if not messages:
+                return await interaction.followup.send("📭 Inbox is empty.")
+                
+            embed = discord.Embed(title=f"Inbox for {email}", color=discord.Color.orange())
+            for msg in messages[:5]:  # Show top 5
+                # The API allows reading by passing the ID
+                embed.add_field(name=f"ID: {msg['id']} | From: {msg['from']}", value=f"**Subject:** {msg['subject']}\n*Date: {msg['date']}*", inline=False)
+            
+            embed.set_footer(text="To read a message, run /tempmail_read <email> <id>")
+            await interaction.followup.send(embed=embed)
+
+    except Exception as e:
+        await interaction.followup.send(f"❌ TempMail Error: {e}")
+
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="tempmail_read", description="Read a specific message from your TempMail")
+@is_owner()
+async def tempmail_read(interaction: discord.Interaction, email: str, message_id: str):
+    await interaction.response.defer()
+    try:
+        if "@" not in email:
+            return await interaction.followup.send("❌ Invalid email format.")
+            
+        user, domain = email.split("@")
+        async with bot.session.get(f"https://www.1secmail.com/api/v1/?action=readMessage&login={user}&domain={domain}&id={message_id}") as resp:
+            data = await resp.json()
+            
+        if "body" not in data:
+            return await interaction.followup.send("❌ Message not found.")
+            
+        # Clean the body and truncate if necessary
+        content = data['textBody'] if data['textBody'] else data['body']
+        if len(content) > 1024:
+            content = content[:1020] + "..."
+            
+        embed = discord.Embed(title=f"Message ID: {message_id}", description=content, color=discord.Color.green())
+        embed.set_author(name=f"From: {data['from']}")
+        embed.add_field(name="Subject", value=data['subject'], inline=False)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error reading message: {e}")
+
+
+# -----------------
+# 10. Notes
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="notes", description="Manage personal notes")
+@app_commands.choices(action=[
+    Choice(name="Add Note", value="add"),
+    Choice(name="List Notes", value="list"),
+    Choice(name="Delete Note", value="delete"),
+])
+@is_owner()
+async def notes(interaction: discord.Interaction, action: str, title: str = None, content: str = None, note_id: int = None):
+    try:
+        if action == "add":
+            if not title or not content:
+                return await interaction.response.send_message("❌ You must provide a `title` and `content` to add a note.")
+            await bot.db.execute("INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)", (interaction.user.id, title, content))
+            await bot.db.commit()
+            await interaction.response.send_message(f"✅ Note **{title}** saved!")
+            
+        elif action == "list":
+            async with bot.db.execute("SELECT id, title, content FROM notes WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                rows = await cursor.fetchall()
+                
+            if not rows:
+                return await interaction.response.send_message("📭 You have no notes saved.")
+                
+            embed = discord.Embed(title="Your Notes", color=discord.Color.gold())
+            for row in rows:
+                n_id, n_title, n_content = row
+                if len(n_content) > 100:
+                    n_content = n_content[:97] + "..."
+                embed.add_field(name=f"[{n_id}] {n_title}", value=n_content, inline=False)
+            await interaction.response.send_message(embed=embed)
+            
+        elif action == "delete":
+            if not note_id:
+                return await interaction.response.send_message("❌ You must provide the `note_id` to delete a note.")
+            await bot.db.execute("DELETE FROM notes WHERE id = ? AND user_id = ?", (note_id, interaction.user.id))
+            await bot.db.commit()
+            await interaction.response.send_message(f"🗑️ Note [{note_id}] deleted.")
+            
+    except Exception as e:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(f"❌ Error managing notes: {e}")
+        else:
+            await interaction.followup.send(f"❌ Error managing notes: {e}")
+
+# -----------------
+# 11. Steam Lookup
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="steam_lookup", description="Look up a Steam user by their vanity URL or Steam ID")
+@is_owner()
+async def steam_lookup(interaction: discord.Interaction, query: str):
+    await interaction.response.defer()
+    try:
+        url = f"https://playerdb.co/api/player/steam/{query}"
+        async with bot.session.get(url) as resp:
+            if resp.status != 200:
+                return await interaction.followup.send("❌ Could not find Steam user. Ensure the ID or username is correct.")
+            
+            data = await resp.json()
+            if not data.get("success"):
+                return await interaction.followup.send("❌ Steam user not found.")
+                
+            player = data["data"]["player"]
+            meta = player.get("meta", {})
+            
+            embed = discord.Embed(title=f"Steam Profile: {player.get('username')}", url=f"https://steamcommunity.com/profiles/{player.get('id')}", color=discord.Color.dark_blue())
+            
+            if player.get('avatar'):
+                embed.set_thumbnail(url=player.get('avatar'))
+                
+            if meta.get('realname'):
+                embed.add_field(name="Real Name", value=meta.get('realname'), inline=True)
+                
+            if meta.get('loccountrycode'):
+                embed.add_field(name="Country", value=meta.get('loccountrycode'), inline=True)
+                
+            embed.add_field(name="Steam ID", value=player.get('id'), inline=False)
+            
+            await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error looking up Steam profile: {e}")
+
+
+# -----------------
+# 12. LTC Tracker Setup
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="set_ltc_log", description="Set the channel where LTC Send/Receive notifications will be sent")
+@is_owner()
+async def set_ltc_log(interaction: discord.Interaction, channel_id: str):
+    if not channel_id.isdigit():
+        return await interaction.response.send_message("❌ Please provide a valid numeric Channel ID.")
+        
+    try:
+        await bot.db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('ltc_log_channel', ?)", (channel_id,))
+        await bot.db.commit()
+        await interaction.response.send_message(f"✅ LTC tracking logs will now be sent to <#{channel_id}>.")
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error setting log channel: {e}")
+
+# -----------------
+# 13. Help Command
+# -----------------
+@discord.app_commands.allowed_installs(guilds=True, users=True)
+@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="help", description="Show all available commands and what they do")
+@is_owner()
+async def help_cmd(interaction: discord.Interaction):
+    embed = discord.Embed(title="🤖 Selfbot Command Menu", description="Here are all the utility and crypto commands currently loaded:", color=discord.Color.purple())
+    
+    commands_list = [
+        ("`/calc <expr>`", "Calculate math expressions safely, including percentages (e.g. `100 + 5%`)."),
+        ("`/paypal`", "Show your configured PayPal email and Terms of Service."),
+        ("`/ltc_address`", "Show your static public Litecoin address."),
+        ("`/ltc_tx <txid>`", "Look up a Litecoin transaction status manually."),
+        ("`/ltc_send <address> <amount>`", "Prompt confirmation to send LTC directly from your wallet via private key."),
+        ("`/portfolio`", "View your live LTC wallet balance converted to USD and EUR."),
+        ("`/set_ltc_log <channel_id>`", "Set a Discord channel to receive automatic notifications whenever your LTC address sends or receives money."),
+        ("`/cv <amount> <from> <to>`", "Convert seamlessly between EUR, USD, and LTC."),
+        ("`/webhook_send <url> <msg>`", "Send a stealth payload message to a webhook without logging the endpoint."),
+        ("`/remind <time> <task>`", "Set a persistent reminder using timeframes like `10m`, `2h`, `1d`."),
+        ("`/notes <action> <title> <content>`", "Manage secure, private text snippets and notes across devices."),
+        ("`/tempmail <action>`", "Generate a disposable email and read its inbox directly on Discord."),
+        ("`/steam_lookup <query>`", "Lookup Steam ID, real name, and avatar by providing a vanity URL or ID.")
+    ]
+    
+    for cmd, desc in commands_list:
+        embed.add_field(name=cmd, value=desc, inline=False)
+        
+    embed.set_footer(text="All commands are restricted to the bot owner.")
+    await interaction.response.send_message(embed=embed)
+
+
+# -----------------
+# 14. Litecoin Send
 # -----------------
 class ConfirmSendView(discord.ui.View):
     def __init__(self, to_address: str, amount_ltc: float):
