@@ -320,8 +320,8 @@ async def prefix_ltc(ctx):
 async def prefix_help(ctx):
     embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
     cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`, `tx_fee_calc`"
-    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`, `discord_token`, `weather`, `timezones`"
-    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`, `uwuify`, `zalgo`, `hack_screen`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `metadata`, `speedtest`, `obfuscate`, `discord_token`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`"
     cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`, `banner_steal`, `guild_icon`, `whois_discord`, `embed_builder`, `role_color`, `server_stats`"
     cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
 
@@ -611,46 +611,6 @@ async def audio_extract(interaction: discord.Interaction, video: discord.Attachm
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}")
 
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="uwuify", description="Translate text into uwu speak")
-@is_owner()
-async def uwuify(interaction: discord.Interaction, text: str):
-    text = text.replace('r', 'w').replace('R', 'W').replace('l', 'w').replace('L', 'W')
-    text = text.replace('you', 'uwu').replace('You', 'Uwu')
-    await interaction.response.send_message(f"{text} uwu")
-
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="zalgo", description="Corrupt text with demonic markings")
-@is_owner()
-async def zalgo(interaction: discord.Interaction, text: str):
-    zalgo_chars = [chr(i) for i in range(0x0300, 0x036F + 1)]
-    out = ""
-    for char in text:
-        out += char
-        for _ in range(random.randint(2, 6)):
-            out += random.choice(zalgo_chars)
-    await interaction.response.send_message(out[:2000])
-
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="hack_screen", description="Output scrolling movie-hacker text")
-@is_owner()
-async def hack_screen(interaction: discord.Interaction):
-    lines = [
-        "[+] Bypassing mainframe firewall...",
-        "[!] Accessing secure root directory...",
-        "[-] Injecting payload to memory sector 0x4B3A",
-        "[+] Decrypting RSA-4096 hash...",
-        "[!] Privilege escalation successful (root/UID 0)",
-        "[-] Scrubbing proxy logs...",
-        "[+] Establishing persistent reverse shell...",
-        "[!] Target compromised. Connection established."
-    ]
-    await interaction.response.send_message("```yaml\n" + "\n".join(lines) + "\n```")
-
-
 from PIL import Image, ImageEnhance
 import io
 
@@ -737,40 +697,6 @@ async def discord_token(interaction: discord.Interaction, token: str):
         await interaction.response.send_message(embed=embed)
     except Exception as e:
         await interaction.response.send_message(f"❌ Failed to decode token: {e}")
-
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="weather", description="Check global live weather")
-@is_owner()
-async def weather(interaction: discord.Interaction, city: str):
-    await interaction.response.defer()
-    try:
-        url = f"https://wttr.in/{city}?format=3"
-        async with bot.session.get(url) as resp:
-            data = await resp.text()
-            await interaction.followup.send(f"**Weather:** {data.strip()}")
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}")
-
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="timezones", description="Compare current times across global cities")
-@is_owner()
-async def timezones(interaction: discord.Interaction):
-    cities = {
-        "New York": "America/New_York",
-        "London": "Europe/London",
-        "Berlin": "Europe/Berlin",
-        "Tokyo": "Asia/Tokyo",
-        "Sydney": "Australia/Sydney"
-    }
-    out = []
-    for city, tz_str in cities.items():
-        tz = pytz.timezone(tz_str)
-        t = datetime.now(tz).strftime("%I:%M %p")
-        out.append(f"**{city}**: `{t}`")
-    await interaction.response.send_message("\n".join(out))
-
 @discord.app_commands.allowed_installs(guilds=True, users=True)
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @bot.tree.command(name="tx_fee_calc", description="Calculate average LTC network fee in Fiat")
@@ -801,52 +727,9 @@ async def tx_fee_calc(interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}")
 
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="social_scan", description="Check if an email is registered to a major service")
 @is_owner()
-async def social_scan(interaction: discord.Interaction, email: str):
-    await interaction.response.defer()
-    try:
-        # A simple check for MX records via a public API 
-        url = f"https://api.eva.pingutil.com/email?email={email}"
-        async with bot.session.get(url) as resp:
-            data = await resp.json()
-            if data.get("status") == "success":
-                info = data["data"]
-                embed = discord.Embed(title=f"Email Scan: {email}", color=discord.Color.blue())
-                embed.add_field(name="Deliverable", value="✅ Yes" if info.get("deliverable") else "❌ No")
-                embed.add_field(name="Disposable", value="✅ Yes" if info.get("disposable") else "❌ No")
-                embed.add_field(name="Spam Trap", value="✅ Yes" if info.get("spam") else "❌ No")
-                await interaction.followup.send(embed=embed)
-            else:
-                await interaction.followup.send("❌ Error parsing email.")
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}")
 
-@discord.app_commands.allowed_installs(guilds=True, users=True)
-@discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.command(name="name_check", description="Check username availability on major sites")
 @is_owner()
-async def name_check(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    sites = {
-        "GitHub": f"https://github.com/{username}",
-        "Twitter/X": f"https://nitter.net/{username}",
-        "Reddit": f"https://www.reddit.com/user/{username}"
-    }
-    results = []
-    for site, url in sites.items():
-        try:
-            async with bot.session.get(url, timeout=3) as resp:
-                if resp.status == 404:
-                    results.append(f"✅ **{site}**: Available (or suspended)")
-                else:
-                    results.append(f"❌ **{site}**: Taken")
-        except:
-            results.append(f"⚠️ **{site}**: Error checking")
-            
-    await interaction.followup.send("\n".join(results))
 
 @discord.app_commands.allowed_installs(guilds=True, users=True)
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
@@ -1384,8 +1267,8 @@ async def help_cmd(interaction: discord.Interaction):
     embed = discord.Embed(title="🤖 Selfbot Command Menu", description=f"Current Prefix: `{bot.current_prefix}`\nAll commands are restricted to the bot owner.", color=discord.Color.purple())
     
     cat_crypto = "`portfolio`, `set_ltc_log`, `cv`, `calc`, `paypal`, `ltc_address`, `ltc_tx`, `ltc_send`, `tx_fee_calc`"
-    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `social_scan`, `name_check`, `metadata`, `speedtest`, `obfuscate`, `discord_token`, `weather`, `timezones`"
-    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`, `uwuify`, `zalgo`, `hack_screen`"
+    cat_util = "`remind`, `notes`, `tempmail`, `webhook_send`, `steam_lookup`, `metadata`, `speedtest`, `obfuscate`, `discord_token`"
+    cat_media = "`nitro_gen`, `fake_message`, `deepfry`, `tts_mp3`, `audio_extract`"
     cat_discord = "`server_clone`, `fake_activity`, `avatar`, `id_decode`, `banner_steal`, `guild_icon`, `whois_discord`, `embed_builder`, `role_color`, `server_stats`"
     cat_prefix = f"`{bot.current_prefix}ytdl`, `{bot.current_prefix}tiktok`, `{bot.current_prefix}spotify`, `{bot.current_prefix}steal`, `{bot.current_prefix}lock`, `{bot.current_prefix}prefix`"
 

@@ -66,14 +66,10 @@ Once running, you can use the following slash commands anywhere on Discord:
 - `/tempmail <action>`: Generate a disposable email address and read its inbox.
 - `/webhook_send <url> <message>`: Send a stealth POST message to a webhook.
 - `/steam_lookup <query>`: Fetch public profile details of a Steam user.
-- `/social_scan <email>`: Check if an email is registered to a major service or if it's a disposable email.
-- `/name_check <username>`: Check username availability on major sites (GitHub, Twitter, Reddit).
 - `/metadata <action> <image>`: Read or completely strip hidden EXIF metadata from an image.
 - `/speedtest`: Run a network speedtest on the Zap-Hosting server.
 - `/obfuscate :` Scramble small code snippets to make them harder to read.
 - `/discord_token <token>`: Decode a Discord token purely offline (reveals ID and creation date).
-- `/weather <city>`: Get live global weather conditions.
-- `/timezones`: Instantly check current times across 5 global financial cities.
 
 **🎨 Media & Trolling**
 - `/nitro_gen`: Generates fake Discord Nitro gift links.
@@ -81,9 +77,6 @@ Once running, you can use the following slash commands anywhere on Discord:
 - `/deepfry`: Brutally deepfry an attached image (saturation, contrast).
 - `/tts_mp3`: Generate a Text-to-Speech audio `.mp3` file from text.
 - `/audio_extract`: Upload an MP4 and strip the audio track out as an MP3.
-- `/uwuify`: Degenerate text converter.
-- `/zalgo`: Corrupt your text using demonic Unicode characters.
-- `/hack_screen`: Outputs scrolling green hacker text.
 
 **👑 Discord Power-User**
 - `/server_clone <server_id>`: Clone a server's category and channel layout securely into your Notes.
